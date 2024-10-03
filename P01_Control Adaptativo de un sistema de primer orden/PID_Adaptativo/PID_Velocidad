@@ -1,0 +1,108 @@
+#include <PID_v1.h>       // Librería para el controlador PID
+#include <Encoder.h>      // Librería para leer el encoder
+
+// Definición de pines
+#define MOTOR_PWM 5        // Pin PWM para controlar la velocidad del motor
+#define MOTOR_DIR 4        // Pin para controlar la dirección del motor
+#define ENCODER_A 2        // Pin A del encoder (usualmente conectado a una interrupción)
+#define ENCODER_B 3        // Pin B del encoder
+
+// Variables del encoder y velocidad
+Encoder myEnc(ENCODER_A, ENCODER_B); // Instancia del objeto Encoder
+long prevPosition = 0;               // Posición anterior del encoder
+double rpm = 0;                      // Velocidad medida en RPM
+double previousMillis = 0;
+int contador = 0;
+// Variables PID
+double Setpoint, Input, Output;       // Variables para el PID: objetivo, entrada y salida
+
+// Parámetros PID
+double Kp = 4.0, Ki = 1.5, Kd = 0.02;  // Valores de sintonización del PID
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT); // Instancia del controlador PID
+
+// Variables para el cálculo de RPM
+unsigned long lastTime = 0;           // Tiempo anterior para el cálculo de RPM
+const int sampleTime = 100;           // Intervalo de muestreo en ms para calcular la velocidad
+
+void setup() {
+  // Configuración de pines
+  pinMode(MOTOR_PWM, OUTPUT);
+  pinMode(MOTOR_DIR, OUTPUT);
+
+  Serial.begin(115200);                 // Inicia la comunicación serial para monitoreo
+
+ attachInterrupt(digitalPinToInterrupt(2), interrupcion,RISING);
+
+  // Configuración del PID
+  Setpoint = 70;                     // Velocidad deseada (RPM)
+  myPID.SetMode(AUTOMATIC);           // Modo automático del PID
+  myPID.SetOutputLimits(0, 255);      // Limita la salida del PID (PWM entre 0 y 255)
+
+  // Inicialización del encoder
+  // Resetea el contador del encoder
+}
+
+void loop() {
+  // Leer la posición actual del encoder
+  unsigned long currentMillis = millis();
+  if ((currentMillis - previousMillis >= sampleTime)){
+    previousMillis = currentMillis;
+    rpm = contador * 10 * (60.0/1212.0);
+    contador = 0;
+  }
+  
+  // Calcular el cambio de posición
+  //long change = newPosition - prevPosition;
+
+  // Calcular la velocidad en RPM
+  //unsigned long currentTime = millis();
+  if ((currentMillis - lastTime) >= sampleTime) {
+    // Calcula la velocidad en RPM:
+    //rpm = (change / 20.0) * (60000.0 / sampleTime);  // Ajustar 20.0 según los pulsos por vuelta del encoder
+
+    // Actualizar variables del PID
+    double e=Setpoint-rpm;
+    Input = rpm;
+    if(e>40){//si el error es muy grande se activa el PID brusco
+      Kp = 10.0;
+      Ki = 1.0;
+      Kd = 0.1;
+    }
+    if(e<5){//si el error es muy pequeño se activa el PI
+      Kp = 3.0;
+      Ki = 1.5;
+      Kd = 0.0;
+    }
+    myPID.Compute();                     // Calcula la salida del PID
+
+    // Controlar el motor con la salida del PID
+    analogWrite(MOTOR_PWM, Output);      // Ajusta la velocidad del motor con la salida del PID
+
+    // Actualizar la posición previa y el tiempo
+    //prevPosition = newPosition;
+    //lastTime = currentTime;
+
+    // Imprimir datos para monitoreo
+    Serial.print(", ");
+    Serial.print(rpm);
+    Serial.print(", ");
+    Serial.print(Setpoint);
+    Serial.print(", ");
+    Serial.println(Output);
+  }
+
+  // Ajustar dirección del motor según la velocidad deseada (esto es opcional y depende del driver del motor)
+  if (Setpoint >= 0) {
+    digitalWrite(MOTOR_DIR, HIGH);  // Dirección hacia adelante
+  } else {
+    digitalWrite(MOTOR_DIR, LOW);   // Dirección hacia atrás
+  }
+
+  // (Opcional) Actualizar el Setpoint con un valor desde el Serial
+  if (Serial.available() > 0) {
+    Setpoint = Serial.parseFloat(); // Permite cambiar el Setpoint a través de la consola Serial
+  }
+}
+void interrupcion(){
+  contador++;
+}
