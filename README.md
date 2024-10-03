@@ -1,3 +1,5 @@
-Edgar Emmanuel Becerra Márquez \n
-Missael Eduardo Becerra Aguilera \n
+Edgar Emmanuel Becerra Márquez
+
+Missael Eduardo Becerra Aguilera
+
 Jesús Ruíz Sosa
